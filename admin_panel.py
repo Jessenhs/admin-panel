@@ -29,8 +29,8 @@ if not os.path.exists(LOGS_DIR):
 def send_traffic(target_ip, target_port, num_requests, delay, log_widget):
     try:
         # Ensure num_requests and delay are of the correct types
-        num_requests = int(num_requests)  # Ensure num_requests is an integer
-        delay = float(delay)  # Ensure delay is a float
+        num_requests = int(num_requests)
+        delay = float(delay)
     except ValueError as e:
         log_widget.insert(tk.END, f"[!] Error: Invalid number or delay format.\n")
         log_widget.yview(tk.END)
@@ -43,25 +43,36 @@ def send_traffic(target_ip, target_port, num_requests, delay, log_widget):
         try:
             # Create a new socket for each request
             client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            client_socket.settimeout(2)
+            client_socket.settimeout(5)  # Increased timeout to 5 seconds
 
             # Connect to the target IP and port
             client_socket.connect((target_ip, target_port))
 
             # Send a basic dummy HTTP GET request
-            message = f"GET / HTTP/1.1\r\nHost: {target_ip}\r\n\r\n"
+            message = f"GET / HTTP/1.1\r\nHost: {target_ip}\r\nConnection: close\r\n\r\n"
             client_socket.send(message.encode())
 
             log_widget.insert(tk.END, f"[+] Sent request {i + 1} to {target_ip}:{target_port} - GET /\n")
             log_widget.yview(tk.END)
 
-            # Simulate the server response (optional, to capture it locally)
-            response = client_socket.recv(1024).decode()
-            log_widget.insert(tk.END, f"[+] Response: {response[:100]}...\n")  # Print the first 100 characters of the response
-            log_widget.yview(tk.END)
+            try:
+                # Try to receive response with timeout
+                response = client_socket.recv(1024).decode()
+                log_widget.insert(tk.END, f"[+] Response received for request {i + 1}\n")
+            except socket.timeout:
+                log_widget.insert(tk.END, f"[*] Response timeout for request {i + 1} (normal behavior)\n")
+            except Exception as e:
+                log_widget.insert(tk.END, f"[*] Could not receive response for request {i + 1}: {str(e)}\n")
 
             client_socket.close()
-            time.sleep(delay)  # Delay between requests
+            time.sleep(delay)
+
+        except ConnectionRefusedError:
+            log_widget.insert(tk.END, f"[!] Connection refused for request {i + 1}\n")
+            log_widget.yview(tk.END)
+        except socket.timeout:
+            log_widget.insert(tk.END, f"[!] Connection timeout for request {i + 1}\n")
+            log_widget.yview(tk.END)
         except Exception as e:
             log_widget.insert(tk.END, f"[!] Error sending request {i + 1}: {str(e)}\n")
             log_widget.yview(tk.END)
